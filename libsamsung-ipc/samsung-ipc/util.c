@@ -22,6 +22,9 @@
 #include <stdint.h>
 #include <string.h>
 
+#define LOG_TAG "RIL-HEX"
+#include <utils/Log.h>
+
 #define isprint(c)	((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9'))
 void hexdump(const uint8_t *buf, int32_t len)
 {
@@ -46,7 +49,7 @@ void hexdump(const uint8_t *buf, int32_t len)
 			str[l++] = isprint( buf[ofs + i] ) ? buf[ofs + i] : '.';
 
 		str[l] = '\0';
-		printf( "%s\n", str );
+		DEBUG_I( "%s\n", str );
 	}
 }
 

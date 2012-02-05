@@ -182,8 +182,8 @@ void ipc_fmt_dispatch(struct modem_io *resp)
         	if (ret)
         	{
         		modem_response_tapi_init(resp);
-        		sim_atk_open(0);
-        		sim_open_to_modem(0);
+        		sim_atk_open(4);
+        		sim_open_to_modem(4);
         	}
         break;
         case FIFO_PKT_DVB_H_DebugLevel:
@@ -377,8 +377,11 @@ void onRequest(int request, void *data, size_t datalen, RIL_Token t)
 	if(ril_modem_check() < 0)
 		RIL_onRequestComplete(t, RIL_E_RADIO_NOT_AVAILABLE, NULL, 0);
 
-#if 0
+	LOGD("onRequest received: %x", request);
+	hexdump(data, datalen);
+
 	switch(request) {
+#if 0
 		/* PWR */
 		case RIL_REQUEST_RADIO_POWER:
 			ril_request_radio_power(t, data, datalen);
@@ -489,6 +492,7 @@ void onRequest(int request, void *data, size_t datalen, RIL_Token t)
 		case RIL_REQUEST_SET_MUTE:
 			ril_request_set_mute(t, data, datalen);
 		/* OTHER */
+#endif
 		case RIL_REQUEST_SCREEN_STATE:
 			/* This doesn't affect anything */
 			RIL_onRequestComplete(t, RIL_E_SUCCESS, NULL, 0);
@@ -498,7 +502,6 @@ void onRequest(int request, void *data, size_t datalen, RIL_Token t)
 			RIL_onRequestComplete(t, RIL_E_REQUEST_NOT_SUPPORTED, NULL, 0);
 			break;
 	}
-#endif
 
 }
 

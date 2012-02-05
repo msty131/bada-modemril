@@ -641,7 +641,7 @@ int32_t get_request_packet(void *data, struct fmRequest *rx_packet)
 
 //	DEBUG_I("Packet type = 0x%x\n", header->fmPacketType);
 //	DEBUG_I("Packet Length = 0x%x\n", header->packetLen);
-	DEBUG_I("Packet counter = 0x%x\n", header->reqCounter);
+//	DEBUG_I("Packet counter = 0x%x\n", header->reqCounter);
 //	DEBUG_I("File name = %s\n", (char *)(rx_packet->reqBuf));
 
 	return 0;

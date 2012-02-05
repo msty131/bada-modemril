@@ -44,6 +44,11 @@
  *
  */
 
+static struct simDataRequest simData;
+static uint16_t current_simDataType;
+static uint32_t current_simDataCount;
+static uint32_t current_simDataCounter;
+
 void modem_response_sim(struct modem_io *resp)
 {
 	DEBUG_I("Entering\n");
@@ -98,12 +103,49 @@ void modem_response_sim(struct modem_io *resp)
 			sid = simHeader->subType-SESSION_SUBTYPE_DIFF;
 			if(sid < SIM_SESSION_COUNT)
 			{
+				DEBUG_I("In SIM OEM response, sid = %d\n", sid);
 				switch(sid)
 				{
 					case 1:
 					case 2: //in this session first packet with sim info is being send
 						//TODO: these 2 sids are somewhat special - apps does switch some bool if they are used, not sure what way they are special.
 						sim_parse_session_event(sim_packet.simBuf, simHeader->bufLen); //sid is stored in buf too
+		        		sim_dummy1_to_modem(4);
+		        		break;
+					case 3:
+						sim_data_request_to_modem(0x5, 0x6F42);
+						current_simDataType = 0x6F42;
+						simData.dataCounter = 0x00;
+						break;
+					case 4:
+						if (simData.dataCounter == 0)
+						{
+							simData.simDataType = current_simDataType;
+							simData.someType = 0x1C;
+							simData.simInd1 = 0x02;
+							simData.simInd2 = 0x01;
+							simData.unk0 = 0x00;
+							simData.unk1 = 0x00;
+							simData.unk2 = 0x00;
+							simData.unk3 = 0x00;
+							simData.unk4 = 0x00;
+							simData.unk5 = 0x00;
+							simData.unk6 = 0x00;
+							simData.unk7 = 0x00;
+							simData.dataCounter = 0x01;
+							memcpy(&current_simDataCount, (resp->data + 42), 4);
+							sim_get_data_from_modem(0x5, &simData);
+						}
+						break;
+					case 8:
+						if(simData.dataCounter <= current_simDataCount)
+						{
+							DEBUG_I("Sent SIM Request type = 0x%x, packet no. %d, total packets = %d\n", simData.simDataType, simData.dataCounter, current_simDataCount);
+							sim_get_data_from_modem(0x5, &simData);
+						}
+						else
+							simData.dataCounter = 0;
+
 						break;
 					default:
 						sim_parse_session_event(sim_packet.simBuf, simHeader->bufLen); //sid is stored in buf too
@@ -113,7 +155,8 @@ void modem_response_sim(struct modem_io *resp)
 		}
 		else
 		{
-			sim_send_oem_req(sim_packet.simBuf, simHeader->bufLen); //bounceback packet
+			DEBUG_I("Unhandled SIM sub-type = %d\n", simHeader->subType);
+			//sim_send_oem_req(sim_packet.simBuf, simHeader->bufLen); //bounceback packet
 		}
 	}
 
@@ -136,6 +179,36 @@ int sim_send_oem_req(uint8_t* simBuf, uint8_t simBufLen)
 	sim_packet.header.bufLen = simBufLen;
 	sim_packet.simBuf = simBuf;
 	
+	uint32_t bufLen = sim_packet.header.bufLen + sizeof(struct simPacketHeader);
+	uint8_t* fifobuf = malloc(bufLen);
+	memcpy(fifobuf, &sim_packet.header, sizeof(struct simPacketHeader));
+	memcpy(fifobuf + sizeof(struct simPacketHeader), sim_packet.simBuf, sim_packet.header.bufLen);
+
+	request.magic = 0xCAFECAFE;
+	request.cmd = FIFO_PKT_SIM;
+	request.datasize = bufLen;
+
+	request.data = fifobuf;
+
+	hexdump(request.data, request.datasize);
+	ipc_fmt_send(&request);
+
+	free(fifobuf);
+	//TODO: return nonzero in case of failure
+	return 0;
+}
+int sim_send_other_req(void)
+{
+	//simBuf is expected to contain full oemPacket structure
+
+	uint16_t dummy = 0;
+	struct modem_io request;
+	struct simPacket sim_packet;
+	sim_packet.header.type = 1;
+	sim_packet.header.subType = 0x31;
+	sim_packet.header.bufLen = 2;
+	sim_packet.simBuf = &dummy;
+
 	uint32_t bufLen = sim_packet.header.bufLen + sizeof(struct simPacketHeader);
 	uint8_t* fifobuf = malloc(bufLen);
 	memcpy(fifobuf, &sim_packet.header, sizeof(struct simPacketHeader));
@@ -207,7 +280,47 @@ int sim_open_to_modem(uint8_t hSim)
 {
 	//TODO: verify, create and initialize session, send real hSim
 	DEBUG_I("Sending\n");
-	if(sim_send_oem_data(0x4, 0x1, NULL, 0) != 0) //why it starts from 4? hell knows
+	if(sim_send_oem_data(0x04, 0x1, NULL, 0) != 0) //why it starts from 4? hell knows
 		return -1;
+	return 0;
+}
+
+int sim_dummy1_to_modem(uint8_t hSim)
+{
+	//TODO: verify, create and initialize session, send real hSim
+	DEBUG_I("Sending\n");
+	if(sim_send_oem_data(0x04, 0x2, NULL, 0) != 0) //why it starts from 4? hell knows
+		return -1;
+	return 0;
+}
+
+int sim_get_data_from_modem(uint8_t hSim, struct simDataRequest *simData)
+{
+	//TODO: verify, create and initialize session, send real hSim
+	uint16_t dummy = 0x6F40;
+	uint8_t *data;
+
+	data = malloc(sizeof(struct simDataRequest));
+	memcpy(data, simData,sizeof(struct simDataRequest));
+
+	DEBUG_I("Sending\n");
+	if(sim_send_oem_data(hSim, 0x7, data, sizeof(struct simDataRequest)) != 0) //why it starts from 4? hell knows
+		return -1;
+	simData->dataCounter += 1;
+	return 0;
+}
+
+int sim_data_request_to_modem(uint8_t hSim, uint16_t simDataType)
+{
+	//TODO: verify, create and initialize session, send real hSim
+	uint8_t *data;
+
+	data = malloc(sizeof(simDataType));
+	memcpy(data,&simDataType,sizeof(simDataType));
+
+	DEBUG_I("Sending\n");
+	if(sim_send_oem_data(hSim, 0x3, data, sizeof(simDataType)) != 0) //why it starts from 4? hell knows
+		return -1;
+	free(data);
 	return 0;
 }

@@ -56,6 +56,22 @@ struct oemSimPacket{
 	uint8_t *oemBuf;
 } __attribute__((__packed__));
 
+struct simDataRequest{
+	uint16_t simDataType;
+	uint8_t simInd1; //always 0x02
+	uint32_t unk0; //always 0x00
+	uint32_t dataCounter;
+	uint32_t unk1; //always 0x00
+	uint32_t unk2; //always 0x00
+	uint8_t simInd2; //always 0x01
+	uint16_t someType;
+	uint32_t unk3; //always 0x00
+	uint32_t unk4; //always 0x00
+	uint32_t unk5; //always 0x00
+	uint32_t unk6; //always 0x00
+	uint32_t unk7; //always 0x00
+} __attribute__((__packed__));
+
 void modem_response_sim(struct modem_io *resp);
 void sim_parse_session_event(uint8_t* buf, uint32_t bufLen);
 
@@ -65,4 +81,7 @@ int sim_send_oem_data(uint8_t hSim, uint8_t packetType, uint8_t* dataBuf, uint32
 int sim_verify_chv(uint8_t hSim, uint8_t pinType, char* pin);
 int sim_atk_open(uint32_t sid);
 int sim_open_to_modem(uint8_t hSim);
+int sim_dummy1_to_modem(uint8_t hSim);
+int sim_data_request_to_modem(uint8_t hSim, uint16_t simDataType);
+int sim_get_data_from_modem(uint8_t hSim, struct simDataRequest *simData);
 #endif
